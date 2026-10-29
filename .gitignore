@@ -19,7 +19,13 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# macOS AppleDouble resource fork / metadata files
+._*
+
 # Editor
 .vscode/
 .idea/
 *.swp
+
+# npm lockfile (project uses pnpm)
+package-lock.json
