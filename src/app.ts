@@ -4,9 +4,8 @@
  * Responsibilities:
  *  - Security middleware (helmet, CORS, CSRF-in-depth)
  *  - HTTP-only session cookies backed by MongoDB
- *  - Route mounting: /auth, /games, /puzzles, /leaderboard, /users
- *  - Image proxy: /api/v1/puzzle-image?url=… — fetches Banana puzzle images
- *    server-side so the browser never makes an HTTP request (mixed-content fix)
+ *  - Route mounting under /api/v1: /health, /auth, /leaderboard, and (auth required)
+ *    /games, /puzzles (incl. the owner-checked puzzle image), /users/me/stats
  *  - Centralised error handling: ZodError → 400, HttpError → status, else 500
  */
 import express, { type ErrorRequestHandler } from 'express';
@@ -26,10 +25,7 @@ export function createApp(cfg: Config, provider: PuzzleProvider) {
   const prod = cfg.NODE_ENV === 'production';
   if (prod) app.set('trust proxy', 1); // needed for Secure cookies behind Nginx/Docker
 
-  app.use(helmet({
-    // Allow the puzzle images (from sanfoh.com) to load after the server proxies them.
-    contentSecurityPolicy: false,
-  }));
+  app.use(helmet());
   app.use(cors({ origin: cfg.CLIENT_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '10kb' }));
   app.use(session({
@@ -49,51 +45,6 @@ export function createApp(cfg: Config, provider: PuzzleProvider) {
 
   const v1 = express.Router();
   v1.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
-
-  /**
-   * Image Proxy — Interoperability boundary note:
-   * The Banana API returns image URLs that use HTTP (even after the API itself moved to HTTPS).
-   * A browser loading an HTTPS page cannot request HTTP images (mixed-content policy).
-   * This proxy fetches the upstream image server-side and streams it to the client, so
-   * the browser makes a same-origin HTTPS request instead.
-   *
-   * Protocol: HTTP GET to the upstream (external) server, pipe response to client.
-   * Only URLs from the known Banana image host (sanfoh.com) are allowed to prevent
-   * this endpoint being used as an open proxy.
-   *
-   * Event-driven note: this route is called reactively when the PuzzleModal component
-   * mounts and needs to render the puzzle image.
-   */
-  v1.get('/puzzle-image', async (req, res, next) => {
-    try {
-      const { url } = z.object({ url: z.string().url() }).parse(req.query);
-      const parsed = new URL(url);
-      // Allowlist: only proxy images from the Banana puzzle image host.
-      if (!parsed.hostname.endsWith('sanfoh.com') && !parsed.hostname.endsWith('marcconrad.com')) {
-        return void res.status(403).json({ error: 'forbidden_host', message: 'Image host not allowed' });
-      }
-      const upstream = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!upstream.ok) return void res.status(502).json({ error: 'upstream_error' });
-      const ct = upstream.headers.get('content-type') ?? 'image/png';
-      res.setHeader('content-type', ct);
-      res.setHeader('cache-control', 'public, max-age=300'); // 5 min — puzzle TTL matches
-      // Stream the upstream body to the response
-      if (upstream.body) {
-        const reader = upstream.body.getReader();
-        const pump = async () => {
-          const { done, value } = await reader.read();
-          if (done) { res.end(); return; }
-          res.write(value);
-          await pump();
-        };
-        await pump();
-      } else {
-        res.end();
-      }
-    } catch (err) {
-      next(err);
-    }
-  });
 
   v1.use('/auth', authRouter(cfg));
   v1.get('/leaderboard', async (req, res) => {
