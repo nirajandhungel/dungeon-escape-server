@@ -14,7 +14,7 @@
  */
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import { loadConfig } from './config.js';
+import { loadConfig } from './config/index.js';
 import { createApp } from './app.js';
 import { createBananaClient } from './integrations/banana/banana.client.js';
 

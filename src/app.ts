@@ -4,20 +4,18 @@
  * Responsibilities:
  *  - Security middleware (helmet, CORS, CSRF-in-depth)
  *  - HTTP-only session cookies backed by MongoDB
- *  - Route mounting under /api/v1: /health, /auth, /leaderboard, and (auth required)
- *    /games, /puzzles (incl. the owner-checked puzzle image), /users/me/stats
- *  - Centralised error handling: ZodError → 400, HttpError → status, else 500
+ *  - Route mounting under /api/v1 via routes/index.ts
+ *  - Centralised error handling via middleware/errorHandler.ts
  */
-import express, { type ErrorRequestHandler } from 'express';
+import express from 'express';
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import helmet from 'helmet';
 import cors from 'cors';
-import { ZodError, z } from 'zod';
-import { authRouter } from './auth.js';
-import { gamesRouter, leaderboard } from './games.js';
+import { buildRouter } from './routes/index.js';
+import { errorHandler } from './middleware/errorHandler.js';
 import { HttpError } from './errors.js';
-import type { Config } from './config.js';
+import type { Config } from './config/index.js';
 import type { PuzzleProvider } from './integrations/banana/banana.client.js';
 
 export function createApp(cfg: Config, provider: PuzzleProvider) {
@@ -39,27 +37,13 @@ export function createApp(cfg: Config, provider: PuzzleProvider) {
   // CSRF defence in depth: SameSite=Lax + JSON-only bodies + reject state-changing requests from foreign origins.
   app.use((req, _res, next) => {
     const origin = req.get('origin');
-    if (req.method !== 'GET' && origin && origin !== cfg.CLIENT_ORIGIN) return next(new HttpError(403, 'bad_origin', 'Origin not allowed'));
+    if (req.method !== 'GET' && origin && origin !== cfg.CLIENT_ORIGIN)
+      return next(new HttpError(403, 'bad_origin', 'Origin not allowed'));
     next();
   });
 
-  const v1 = express.Router();
-  v1.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+  app.use('/api/v1', buildRouter(cfg, provider));
+  app.use(errorHandler);
 
-  v1.use('/auth', authRouter(cfg));
-  v1.get('/leaderboard', async (req, res) => {
-    const q = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(50).default(10) }).parse(req.query);
-    res.json(await leaderboard(q.page, q.limit));
-  });
-  v1.use(gamesRouter(cfg, provider));
-  app.use('/api/v1', v1);
-
-  const onError: ErrorRequestHandler = (err, req, res, _next) => {
-    if (err instanceof ZodError) return void res.status(400).json({ error: 'validation_error', issues: err.issues.map((i) => ({ path: i.path, message: i.message })) });
-    if (err instanceof HttpError) return void res.status(err.status).json({ error: err.code, message: err.message });
-    console.error(JSON.stringify({ level: 'error', msg: err instanceof Error ? err.message : 'unknown', path: req.path }));
-    res.status(500).json({ error: 'internal_error' });
-  };
-  app.use(onError);
   return app;
 }
