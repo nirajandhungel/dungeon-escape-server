@@ -3,7 +3,7 @@
  * aggregate query everything else (stats, completion rewards, cape equip) is derived from — nothing is stored twice.
  */
 import { Types } from 'mongoose';
-import { Game } from './models.js';
+import { Game } from '../models/index.js';
 
 /** Score = (time/mistake-based base + first-try bonus) × difficulty multiplier. Rank uses the un-multiplied score. */
 export function scoreRun(durationMs: number, wrongAttempts: number, firstTryDoors: number, hard: boolean) {
