@@ -5,7 +5,7 @@ const userSchema = new Schema({
   displayName: { type: String, required: true, trim: true },
   passwordHash: { type: String, required: true, select: false },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  cape: { type: String, default: 'crimson' },   // cosmetic; must be an unlocked cape id (see rewards.ts)
+  cape: { type: String, default: 'crimson' },   // cosmetic; must be an unlocked cape id (see services/rewards.service.ts)
 }, { timestamps: true });
 
 const gameSchema = new Schema({
