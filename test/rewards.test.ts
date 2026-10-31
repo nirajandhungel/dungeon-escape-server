@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ACHIEVEMENTS, CAPES, earned, scoreRun, type Totals } from '../src/rewards.js';
+import { ACHIEVEMENTS, CAPES, earned, scoreRun, type Totals } from '../src/services/rewards.service.js';
 
 const zero: Totals = { runs: 0, completed: 0, flawless: 0, hardWon: 0, rankS: 0, totalScore: 0, bestScore: null, bestTimeMs: null, puzzlesSolved: 0, relicsTotal: 0, levelsCleared: 0 };
 

@@ -3,8 +3,8 @@ import request from 'supertest';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createApp } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
-import { Game, Puzzle } from '../src/models.js';
+import { loadConfig } from '../src/config/index.js';
+import { Game, Puzzle } from '../src/models/index.js';
 import { UpstreamError, type PuzzleProvider } from '../src/integrations/banana/banana.client.js';
 
 type Agent = ReturnType<typeof request.agent>;
